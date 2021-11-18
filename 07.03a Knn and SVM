@@ -1,0 +1,297 @@
+# Szybkie przypomnienie i kNN na dobry początek!
+
+Na początku pobierzmy wymagane zbiory
+"""
+
+!git clone https://github.com/matzim95/ML-datasets
+
+import pandas as pd
+
+def load_dataset(filename, class_column, index_col=None):
+    dataset = pd.read_csv(f'ML-datasets/{filename}.csv', index_col=index_col)
+    dataset['class'] = dataset[class_column].astype('category').cat.codes
+    classes = dataset.pop(class_column).unique()
+    return dataset, classes
+
+iris, iris_classes = load_dataset('iris', 'species')
+print(iris_classes)
+
+y = iris.pop('class')
+X = iris
+
+wine, wine_classes = load_dataset('wine', 'Class')
+print(wine_classes)
+
+y = wine.pop('class')
+X = wine
+
+# Zbiór treningowy i testowy
+from sklearn.model_selection import train_test_split
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y)
+
+from sklearn.neighbors import KNeighborsClassifier
+
+# Create and fit the model
+knn = KNeighborsClassifier(n_neighbors=5)
+knn.fit(X_train, y_train)
+
+# Predict on the test features, print the results
+pred = knn.predict(X_test)
+
+## inna metryka obliczania odległości
+knn1 = KNeighborsClassifier(n_neighbors=5,  metric='manhattan')
+knn1.fit(X_train, y_train)
+
+pred = knn1.predict(X_test)
+knn1 = KNeighborsClassifier()
+
+##liczenie odległości
+
+from sklearn.neighbors import DistanceMetric
+dist = DistanceMetric.get_metric('euclidean')
+X = [[0, 1],
+         [0, 0]]
+dist.pairwise(X)
+
+from sklearn.metrics.pairwise import euclidean_distances
+euclidean_distances(X, [[0, 0]])
+
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+
+# average:
+#   None - wyniki dla każdej klasy osobno
+#   'binary' - dla wybranej w `pos_label` etykiety
+#   'micro' - dla całkowitej liczby TP, FN, FP
+#   'macro' - nieważona średnia dla każdej klasy
+#   'weighted' - ważona średnia dla każdej klasy
+
+def calculate_metrics(target, prediction, average='micro'):
+    accuracy = accuracy_score(target, prediction)
+    precision = precision_score(target, prediction, average=average)
+    recall = recall_score(target, prediction, average=average)
+    f1 = f1_score(target, prediction, average=average)
+    mislabeled = (target != prediction).sum()
+    total = len(target)
+    return accuracy, precision, recall, f1, mislabeled, total
+
+def print_results(metrics, classifier_id='classifier'):
+    print(f'Results for {classifier_id}')
+    print('----')
+    print(f'  Accuracy:  {metrics[0]}')
+    print(f'  Precision: {metrics[1]}')
+    print(f'  Recall:    {metrics[2]}')
+    print(f'  F1 score:  {metrics[3]}')
+    print(f'  Mislabeled {metrics[4]} out of {metrics[5]}')
+    print('\n')
+
+print_results(calculate_metrics(y_test, pred), 'kNN')
+
+"""ZADANIE domowe: Badania: wpływ kroswalidacaji, normalizacji, ilości sąsiadów, metody mierzenia odległości (Euklidesa, Manhattan, Czebyszewa, Mińkowskiego), sposobu głosowania (większościowe, ważone, ważone do kwadratu.
+
+# Klasyfikacja liniowa, funkcja kosztu - mała powtórka
+
+W danych liniowo separowalnych, możemy użyć prostych funkcji do podziału binarnego, na przykład regresji liniowej. Regresja taka ma postać funkcji liniowej. Zacznijmy jednak od całkowitych podstaw, jak działają takie klasyfikatory, w tym celu napiszmy dwie proste tablice
+"""
+
+import numpy as np
+
+x = np.arange(3)
+y = np.arange(3,6)
+
+print(x,y)
+
+x*y
+
+np.sum(x*y)
+
+"""To samo możemy uzyskać pisząc: to się nazywa dot product x.y w matematyce"""
+
+x@y
+
+"""I to jest we wzorze y = ax+b nasze ax, gdzie a, to współczynniki cech, a x to cechy. Tak działa predykcja w klasyfikatorach, również w perceptronach sieci. b natomiast to określony bias (początkowe obciążenie), również w postaci wektora cech"""
+
+from scipy.optimize import minimize
+
+minimize(np.square, 3).x
+
+import numpy as np
+import scipy.optimize as opt
+
+objective = np.poly1d([1.0, -2.0, 0.0]) 
+print(objective)
+x0 = 8.0
+results = opt.minimize(objective,x0) 
+print("Solution: x=%f" % results.x)
+
+import matplotlib.pylab as plt
+x = np.linspace(-3,5,100)
+plt.plot(x,objective(x)) 
+plt.plot(results.x,objective(results.x),'ro')
+plt.show()
+
+"""Przejdźmy do funkcji straty, w regresji liniowej często jest ona określana jako kwadrat różnicy między wartością oczekiwaną a predykowaną. W scikicie jest funkcja, która oblicza koszt dla określonej funkcji kosztu i zadanej wartości.
+
+Zdefiniujmy teraz własną funkcję kosztu:
+"""
+
+iris, iris_classes = load_dataset('iris', 'species')
+print(iris_classes)
+
+y = iris.pop('class')
+X = iris
+
+# The squared error, summed over training examples
+def my_loss(w):
+    s = 0
+    for i in range(y.size):
+        # Get the true and predicted target values for example 'i'
+        y_i_true = y[i]
+        y_i_pred = w@X.loc[i]
+        s = s + (y_i_true - y_i_pred)**2
+    return s
+
+# Returns the w that makes my_loss(w) smallest
+w_fit = minimize(my_loss, X.loc[0]).x
+print(w_fit)
+
+"""Porównajmy teraz wyniki z prawdziwym klasyfikatorem liniowym"""
+
+from sklearn.linear_model import LinearRegression
+
+lr = LinearRegression(fit_intercept=False).fit(X,y)
+print(lr.coef_)
+
+"""Jak widzimy odwzorowoaliśmy funkcję fit B)
+
+# Regularyzacja, czyli jak przeciwdziałać overfittingowi. Czy to jest w ogóle problem? Sprawdżmy!
+"""
+
+from sklearn.linear_model import LogisticRegression
+
+wine, wine_classes = load_dataset('wine', 'Class')
+print(wine_classes)
+
+y = wine.pop('class')
+X = wine
+
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y)
+
+# Train and validaton errors initialized as empty list
+train_errs = list()
+valid_errs = list()
+
+C_values = [0.001, 0.01, 0.1, 1, 10, 100, 1000, 100000]
+
+# Loop over values of C_value
+for C_value in C_values:
+    # Create LogisticRegression object and fit
+    lr = LogisticRegression(C=C_value)
+    lr.fit(X_train, y_train)
+    
+    # Evaluate error rates and append to lists
+    train_errs.append( 1.0 - lr.score(X_train, y_train))
+    valid_errs.append( 1.0 - lr.score(X_test, y_test))
+    
+# Plot results
+plt.semilogx(C_values, train_errs, C_values, valid_errs)
+plt.legend(("train", "validation"))
+plt.show()
+
+"""Regularyzacja l1 udostępnia selekcję cech, o możemy zobaczyć tu:"""
+
+from sklearn.model_selection import GridSearchCV
+
+# Specify L1 regularization
+lr = LogisticRegression(penalty='l1', solver='liblinear')
+
+# Instantiate the GridSearchCV object and run the search
+searcher = GridSearchCV(lr, {'C':[0.001, 0.01, 0.1, 1, 10]})
+searcher.fit(X_train, y_train)
+
+# Report the best parameters
+print("Best CV params", searcher.best_params_)
+
+# Find the number of nonzero coefficients (selected features)
+best_lr = searcher.best_estimator_
+coefs = best_lr.coef_
+print("Total number of features:", coefs.size)
+print("Number of selected features:", np.count_nonzero(coefs))
+
+"""Wraz ze wzrotem regularyzacji, maleje pewność wykrycia:
+    
+"""
+
+# Set the regularization strength
+model = LogisticRegression(C=0.0000001) # sprawdzić dla 1, itd.
+
+# Fit and plot
+model.fit(X,y)
+
+# Predict probabilities on training points
+prob = model.predict_proba(X)
+print("Maximum predicted probability", np.max(prob))
+
+prob
+
+"""Różnice między klasyfikatorami logistycznymi one vs rest, multinomial"""
+
+# Fit one-vs-rest logistic regression classifier
+lr_ovr = LogisticRegression()
+lr_ovr.fit(X_train, y_train)
+
+print("OVR training accuracy:", lr_ovr.score(X_train, y_train))
+print("OVR test accuracy    :", lr_ovr.score(X_test, y_test))
+
+# Fit softmax classifier
+lr_mn = LogisticRegression(multi_class= 'multinomial', solver="lbfgs")
+lr_mn.fit(X_train, y_train)
+
+print("Softmax training accuracy:", lr_mn.score(X_train, y_train))
+print("Softmax test accuracy    :", lr_mn.score(X_test, y_test))
+
+"""# SVM"""
+
+from sklearn.svm import SVC
+
+# Train a linear SVM
+svm = SVC(kernel="linear")
+svm.fit(X,y)
+
+# Make a new data set keeping only the support vectors
+print("Number of original examples", len(X))
+print("Number of support vectors", len(svm.support_))
+
+"""No dobrze, ale co w przypadku, gdy nasze dane nie są liniowo separowalne? Trzeba dokonać transofmracji. Do tego służy nam Kernel SVM"""
+
+#gamma reguluje nam ilość przekształceń
+
+# Instantiate an RBF SVM
+svm = SVC()
+
+# Instantiate the GridSearchCV object and run the search
+parameters = {'gamma':[0.00001, 0.0001, 0.001, 0.01, 0.1]}
+searcher = GridSearchCV(svm, parameters)
+searcher.fit(X, y)
+
+# Report the best parameters
+print("Best CV params", searcher.best_params_)
+
+"""Porównajmy sobie różne wartości regularyzacji i przekształceń gamma"""
+
+# Instantiate an RBF SVM
+svm = SVC()
+
+# Instantiate the GridSearchCV object and run the search
+parameters = {'C':[0.1, 1, 10], 'gamma':[0.00001, 0.0001, 0.001, 0.01, 0.1]}
+searcher = GridSearchCV(svm, parameters)
+searcher.fit(X_train, y_train)
+
+# Report the best parameters and the corresponding score
+print("Best CV params", searcher.best_params_)
+print("Best CV accuracy", searcher.best_score_)
+
+# Report the test accuracy using these best parameters
+print("Test accuracy of best grid search hypers:", searcher.score(X_test, y_test))
+
